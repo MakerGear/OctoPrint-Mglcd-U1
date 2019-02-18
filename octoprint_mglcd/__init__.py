@@ -1128,7 +1128,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				# version check: github repository
 				type="github_release",
 				user="MakerGear",
-				repo="OctoPrint-Mglcd",
+				repo="OctoPrint-Mglcd-U1",
 				current=self._plugin_version,
 
 				# update method: pip

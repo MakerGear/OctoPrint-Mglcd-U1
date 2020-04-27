@@ -1381,7 +1381,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 					if not self.rrf:
 						self._printer.set_temperature("bed",int(m.group(0)))
 					else:
-						if m.group(0) == 0:
+						if int(m.group(0)) == 0:
 							self._printer.commands(["M140 P0 S"+str(int(m.group(0))),
 								"M140 P1 S"+str(int(m.group(0))),
 								"M140 P2 S"+str(int(m.group(0))),

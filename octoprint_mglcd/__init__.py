@@ -73,7 +73,7 @@ class Component(object):
 			return HotSpot(page,id,name)
 		elif "waveform" in type:
 			return WaveForm(page,id,name)
-		
+
 		return None
 
 class Text(Component):
@@ -157,8 +157,8 @@ class Page(object):
 				for componentDefinition in pageDefinition['components']:
 					page.components.append(Component.newComponentByDefinition(page,componentDefinition))
 		return page
-		
-	
+
+
 	def componentByName(self,name):
 		result=None
 		for component in self.components:
@@ -194,12 +194,12 @@ class Nextion(object):
 		"66": "Current page ID number returns"
 	}
 
-	RED   =63488	
-	BLUE  =31	
-	GRAY  =33840	
-	BLACK =0	
-	WHITE =65535	
-	GREEN =2016	
+	RED   =63488
+	BLUE  =31
+	GRAY  =33840
+	BLACK =0
+	WHITE =65535
+	GREEN =2016
 	BROWN =48192
 	YELLOW=65504
 
@@ -343,7 +343,7 @@ class Nextion(object):
 		s=self.nxWrite(key+'='+str(value))
 		if s[0]!=0x01:
 			raise ValueError(Nextion.getErrorMessage(s[0])+": "+key+"="+str(value))
-		
+
 
 	@staticmethod
 	def getErrorMessage(s):
@@ -378,7 +378,7 @@ class Nextion(object):
 					if c==0xff and len(s)==0:
 						continue
 
-					if c!=0x00:        
+					if c!=0x00:
 						if self.debug is True:
 							print "\/ :"+str(c)+":"+str(len(s))+":"+str(count)
 
@@ -415,7 +415,7 @@ class Nextion(object):
 		t = Thread(target=_reader)
 		t.start()
 		t.join()
-		return s 
+		return s
 
 class NextionPlugin(octoprint.plugin.StartupPlugin,
 						octoprint.plugin.TemplatePlugin,
@@ -465,7 +465,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 		self.confirmRequired = True
 		self.waitingForConfirm = False
 		self.rrf = True
-	
+
 	def initialize(self):
 		self.address = self._settings.get(["socket"])
 
@@ -695,7 +695,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				traceback.print_exc()
 
 
-				
+
 
 		if '\n' in self.receiveLog:
 			# self._logger.info(" slashn in receiveLog")
@@ -716,7 +716,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				self._logger.info(tempLog)
 				traceback.print_exc()
 
-				
+
 
 	def populateIpAddress(self):
 		if self.displayConnected:
@@ -733,7 +733,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 		# self._logger.info(self._file_manager.list_files(path='nextion'))
 		self._printer.register_callback(self)
 		self.displayConnectionTimer.start()
-		
+
 		# self.populatePrintList()
 
 		# self.connect_to_display()
@@ -1359,7 +1359,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				self.fileListLocation = 0
 			if self.currentPage == 'wifipassword':
 				self.nextionDisplay.nxWrite('wifipassword.header.txt="Connecting to : {}"'.format(self.chosenSsid))
-								
+
 
 		if "set" in str(line):
 			# self._logger.info("1")
@@ -1381,10 +1381,17 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 					if not self.rrf:
 						self._printer.set_temperature("bed",int(m.group(0)))
 					else:
-						self._printer.commands(["M140 P0 S"+str(int(m.group(0))),
-							"M140 P1 S"+str(int(m.group(0))+2),
-							"M140 P2 S"+str(int(m.group(0))+4),
-							"M140 P3 S"+str(int(m.group(0))+4)])
+						if m.group(0) == 0:
+							self._printer.commands(["M140 P0 S"+str(int(m.group(0))),
+								"M140 P1 S"+str(int(m.group(0))),
+								"M140 P2 S"+str(int(m.group(0))),
+								"M140 P3 S"+str(int(m.group(0)))])
+
+						else:
+							self._printer.commands(["M140 P0 S"+str(int(m.group(0))),
+								"M140 P1 S"+str(int(m.group(0))+2),
+								"M140 P2 S"+str(int(m.group(0))+4),
+								"M140 P3 S"+str(int(m.group(0))+4)])
 
 					# self._logger.info(m.group(0))
 					# self._logger.info("regex caught")
@@ -1592,7 +1599,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 					fileButton = (re.search(pattern, line)).group(0).strip()
 					# self._logger.info(fileButton)
 
-				
+
 					# if fileButton == 'page':
 					# 	self.populatePrintList()
 					# 	self.fileListLocation = 0
@@ -1666,7 +1673,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 						else:
 							self.fileListLocation = len(self.fileList) - 3
 						self.showFileList()
-				
+
 				except Exception as e:
 					self._logger.info(str(e))
 
@@ -1817,7 +1824,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 		if not flag:
 			raise RuntimeError("Error while selecting wifi: " + content)
 		return content
-		
+
 
 	def _forget_wifi(self):
 		payload = dict()

@@ -1324,6 +1324,16 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 			self.nextionDisplay.nxWrite('messages.text0.txt="{}"'.format(message))
 
 
+	def showM117(self, comm_instance, phase, cmd, cmd_type, gcode, *args, **kwargs):
+		# return
+		if gcode and cmd.startswith("M117"):
+							try:
+								if self.currentPage == 'home':
+									stateString = self.currentPage + '.status.txt="Msg: {}"'.format(str(cmd))
+									self.nextionDisplay.nxWrite(stateString)
+							except Exception as e:
+								self._logger.info("Exception while trying to show the M117 message on the LCD.  Exception: {}".format(str(e)))
+		return
 
 	def getMessage(self):
 		if self.displayConnected:
@@ -1918,5 +1928,6 @@ def __plugin_load__():
 
 	global __plugin_hooks__
 	__plugin_hooks__ = {
-		"octoprint.plugin.softwareupdate.check_config": __plugin_implementation__.get_update_information
+		"octoprint.plugin.softwareupdate.check_config": __plugin_implementation__.get_update_information,
+		"octoprint.comm.protocol.gcode.sent": __plugin_implementation__.showM117,
 	}

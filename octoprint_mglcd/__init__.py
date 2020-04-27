@@ -1264,6 +1264,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				self.nextionDisplay.nxWrite(bedDisplayString)
 
 
+
 			if self.currentPage == 'home':
 				if (data['job']['file']['name']) == None:
 					filePrintingString = self.currentPage + '.filePrinting.txt="No File Selected"'
@@ -1452,6 +1453,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				moveDict[axis] = (distance * direction)
 				# self._logger.info(moveDict)
 				self._printer.jog(moveDict, speed = speed)
+				self._printer.commands("M114")
 
 
 

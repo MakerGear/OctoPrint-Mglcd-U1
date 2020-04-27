@@ -1253,7 +1253,13 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 
 
 			if self.currentPage == 'home' or self.currentPage == 'temperature':
-				bedDisplayString = self.currentPage + '.bedDisplay.txt="{} / {} \xB0C"'.format(str(int(tempData['bed']['actual'])),str(int(tempData['bed']['target'])))
+
+				try:
+					bedDisplayString = self.currentPage + '.bedDisplay.txt="{} / {} \xB0C"'.format(str(int(tempData['bed']['actual'])),str(int(tempData['bed']['target'])))
+
+				except Exception as e:
+					self._logger.info("No bed temperature in current data?  Exception: {}".format(str(e)))
+					bedDisplayString = self.currentPage + '.bedDisplay.txt="No Data"'
 
 				self.nextionDisplay.nxWrite(bedDisplayString)
 

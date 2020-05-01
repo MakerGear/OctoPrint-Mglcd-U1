@@ -626,7 +626,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 
 		# 	tftFiles = allFiles.
 
-		self.firmwareLocation = self._basefolder+"/static/supportfiles/nextion_uploader/m3-v3-0120.tft"
+		self.firmwareLocation = self._basefolder+"/static/supportfiles/nextion_uploader/m3-v3-0121.tft"
 		flashCommand = "python " + self.firmwareFlashingProgram + " " + self.firmwareLocation + " " + targetPort
 		if (self._execute(flashCommand)[0] == 0):
 			self.tryToConnect = True
@@ -847,6 +847,8 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 		self.ipTimer.start()
 
 
+	def evaluateFirmware(self, firmwareReport):
+		pass
 
 
 
@@ -1327,9 +1329,11 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 	def showM117(self, comm_instance, phase, cmd, cmd_type, gcode, *args, **kwargs):
 		# return
 		if gcode and cmd.startswith("M117"):
+							baseMessage = str(cmd)[4:].replace('\\','\\\\').replace('\"','\\"').strip()
+							self._logger.info("cmd as a string: {}; cmd as a repr: {}; baseMessage: {}".format(str(cmd), repr(cmd), baseMessage))
 							try:
 								if self.currentPage == 'home':
-									stateString = self.currentPage + '.status.txt="Msg: {}"'.format(str(cmd))
+									stateString = self.currentPage + '.msgDisplay.txt="Msg: {}"'.format(baseMessage)
 									self.nextionDisplay.nxWrite(stateString)
 							except Exception as e:
 								self._logger.info("Exception while trying to show the M117 message on the LCD.  Exception: {}".format(str(e)))

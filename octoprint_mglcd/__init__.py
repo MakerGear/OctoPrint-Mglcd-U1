@@ -465,6 +465,12 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 		self.confirmRequired = True
 		self.waitingForConfirm = False
 		self.rrf = True
+		self.lastSentMessage = ""
+		self.x1aErrorRetriesMax = 3
+		self.x1aErrorRetriesCurrent = 0
+
+
+
 
 	def initialize(self):
 		self.address = self._settings.get(["socket"])
@@ -672,6 +678,10 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 		# self._logger.info("parseLog triggered")
 		if '\x00' in self.receiveLog:
 			self.receiveLog.popleft()
+
+		if "\x1a" in self.receiveLog:
+			self._logger.info("x1a error received, in parseLog.")
+
 		if '\xff' in self.receiveLog:
 			# self._logger.info("xff in receiveLog")
 			try:
@@ -991,6 +1001,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 		for clearPos in range (0,5):
 			self.nextionDisplay.nxWrite('files.file{}.txt="{}"'.format(clearPos,('')))
 		lastPos = 5
+		# yes, I know lastPos and the clearPos range is range(0,5), but Python interprets that as "a list of 5 indices starting at 0", so generates 0, 1, 2, 3, 4
 		for fileCount in range(0,lastPos):
 			try:
 				# self._logger.info(fileName)
@@ -1221,31 +1232,33 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 			if self.currentPage == 'printcontrols':
 				if (data['job']['file']['name']) == None:
 					filePrintingString = self.currentPage + '.fileName.txt="No File"'
+					fileTimeLeftString = self.currentPage + '.fileTime.txt="Print Time: No Data"'
+					fileUsedFilamentString = self.currentPage + '.filament.txt="Filament: No Data"'
 				else:
 					filePrintingString = self.currentPage + '.fileName.txt="{}"'.format(data['job']['file']['name'])
 
-				try:
-					tempTime = int(data['job']['estimatedPrintTime']/60)
-					if tempTime > 60:
-						tempTimeString = str(int(math.floor(tempTime/60)))+" hrs " + str(int(math.fmod(tempTime,60))) + " min"
-					else:
-						tempTimeString = str(tempTime) + " min"
-					fileTimeLeftString = self.currentPage + '.fileTime.txt="Print Time: {}"'.format(tempTimeString)
-				except Exception as e:
-					fileTimeLeftString = self.currentPage + '.fileTime.txt="Print Time: No Data"'
-					self._logger.info("Exception when populating file print time: "+str(e))
+					try:
+						tempTime = int(data['job']['estimatedPrintTime']/60)
+						if tempTime > 60:
+							tempTimeString = str(int(math.floor(tempTime/60)))+" hrs " + str(int(math.fmod(tempTime,60))) + " min"
+						else:
+							tempTimeString = str(tempTime) + " min"
+						fileTimeLeftString = self.currentPage + '.fileTime.txt="Print Time: {}"'.format(tempTimeString)
+					except Exception as e:
+						fileTimeLeftString = self.currentPage + '.fileTime.txt="Print Time: No Data"'
+						self._logger.info("Exception when populating file print time: "+str(e))
 
 
 
-				try:
-					self.filamentInFile = 0.0
-					for tool in data['job']['filament'].keys():
-						self.filamentInFile = self.filamentInFile + data['job']['filament'][tool]['length']
-					fileUsedFilamentString = self.currentPage + '.filament.txt="Filament: {} m"'.format(str(round((self.filamentInFile/1000),2)))
-				except Exception as e:
-					fileUsedFilamentString = self.currentPage + '.filament.txt="Filament: No Data"'
-					# self._logger.info("Filament usage exception: "+str(e))
-					# self._logger.info(data['job']['filament'])
+					try:
+						self.filamentInFile = 0.0
+						for tool in data['job']['filament'].keys():
+							self.filamentInFile = self.filamentInFile + data['job']['filament'][tool]['length']
+						fileUsedFilamentString = self.currentPage + '.filament.txt="Filament: {} m"'.format(str(round((self.filamentInFile/1000),2)))
+					except Exception as e:
+						fileUsedFilamentString = self.currentPage + '.filament.txt="Filament: No Data"'
+						# self._logger.info("Filament usage exception: "+str(e))
+						# self._logger.info(data['job']['filament'])
 
 				self.nextionDisplay.nxWrite(filePrintingString)
 				self.nextionDisplay.nxWrite(fileTimeLeftString)
@@ -1335,6 +1348,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 								if self.currentPage == 'home':
 									stateString = self.currentPage + '.msgDisplay.txt="Msg: {}"'.format(baseMessage)
 									self.nextionDisplay.nxWrite(stateString)
+									self.lastSentMessage = stateString
 							except Exception as e:
 								self._logger.info("Exception while trying to show the M117 message on the LCD.  Exception: {}".format(str(e)))
 		return
@@ -1370,6 +1384,10 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 		if "MAKERGEAR" in str(line):
 			self._logger.info("Handshake received.")
 			self.handshakeReceived()
+
+		if "\x1a" in str(line):
+			self._logger.info("x1a error received, in processMessage.")
+
 
 
 		if "page " in str(line):

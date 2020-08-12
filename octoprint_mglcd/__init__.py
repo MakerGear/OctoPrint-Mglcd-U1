@@ -22,6 +22,7 @@ import octoprint.filemanager
 import octoprint.filemanager.util
 import octoprint.filemanager.storage
 import octoprint.slicing
+from octoprint.events import Events
 from octoprint.server import printer, fileManager, slicingManager, eventManager, NO_CONTENT
 from flask import jsonify, make_response
 import logging
@@ -765,6 +766,20 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 			self.nextionDisplay.nxWrite('page shuttingDown')
 		except:
 			return
+
+	def on_event(self, event, payload):
+		if event not in [Events.PRINT_FAILED, Events.PRINT_CANCELLED, Events.PRINT_DONE, Events.PRINT_PAUSED, Events.PRINT_STARTED]:
+			return
+		else:
+			try:
+				if event in [Events.PRINT_FAILED, Events.PRINT_CANCELLED, Events.PRINT_DONE, Events.PRINT_STARTED]:
+					self.nextionDisplay.nxWrite('printcontrols.toggle.txt="Pause"')
+				elif event in [Events.PRINT_PAUSED]:
+					self.nextionDisplay.nxWrite('printcontrols.toggle.txt="Resume"')
+			except Exception as e:
+				self._logger.info("Exception occurred while trying to update Print Control screen button title, based on a triggered event.  Exception: {}, event and payload: {}{}.".format(str(e), str(event), str(payload)))
+
+
 
 	def connect_to_display(self):
 		if self.tryToConnect:

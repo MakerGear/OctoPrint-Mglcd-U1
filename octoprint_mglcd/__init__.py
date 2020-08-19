@@ -633,7 +633,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 
 		# 	tftFiles = allFiles.
 
-		self.firmwareLocation = self._basefolder+"/static/supportfiles/nextion_uploader/m3-v3-0121.tft"
+		self.firmwareLocation = self._basefolder+"/static/supportfiles/nextion_uploader/m3-v3-0122.tft"
 		flashCommand = "python " + self.firmwareFlashingProgram + " " + self.firmwareLocation + " " + targetPort
 		if (self._execute(flashCommand)[0] == 0):
 			self.tryToConnect = True
@@ -680,8 +680,25 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 		if '\x00' in self.receiveLog:
 			self.receiveLog.popleft()
 
+		if '\x01' in self.receiveLog:
+			self.lastSentMessage = ""
+			self.x1aErrorRetriesCurrent = 0
+
 		if "\x1a" in self.receiveLog:
 			self._logger.info("x1a error received, in parseLog.")
+			# basically, if there's a lastSent message, and if retriesCurrent is less than retriesMax, resend
+			if self.lastSentMessage is not "":
+				if self.x1aErrorRetriesCurrent < self.x1aErrorRetriesMax:
+					self._logger.info("Have a lastSentMessage and retries to burn, trying to send again.")
+					self.nextionDisplay.nxWrite(self.lastSentMessage)
+					self.x1aErrorRetriesCurrent += 1
+				else:
+					self._logger.info("Have a lastSentMessage, but we're out of retries - either there's a major issue with this message ({}), or the LCD/connection is broken.  Resetting.".format(self.lastSentMessage))
+					self.lastSentMessage = ""
+					self.x1aErrorRetriesCurrent = 0
+
+			else:
+				self.x1aErrorRetriesCurrent = 0
 
 		if '\xff' in self.receiveLog:
 			# self._logger.info("xff in receiveLog")
@@ -690,7 +707,6 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				tempResponse = deque([])
 				while ffCount < 3:
 					# self._logger.info("popping first index")
-
 					tempVal = self.receiveLog.popleft()
 					if tempVal == '\xff':
 						ffCount += 1
@@ -1164,38 +1180,6 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 			)
 		)
 
-	# def on_printer_add_temperature(self, data):
-	# 	if self.displayConnected:
-	# 		# self._logger.info(data)
-	# 		# self._logger.info(data['tool0']['actual'])
-	# 		# displayString = str('Tool0.tempDisplay.txt='+str(data['tool0']['actual'])+' / '+str(data['tool0']['target'])+' C\xB0')
-	# 		displayString = 'home.tool0Display.txt="{} / {} \xB0C"'.format(str(int(data['tool0']['actual'])),str(int(data['tool0']['target'])))
-	# 		bedDisplayString = 'home.bedDisplay.txt="{} / {} \xB0C"'.format(str(int(data['bed']['actual'])),str(int(data['bed']['target'])))
-	# 		try:
-	# 			tool1DisplayString = 'home.tool1Display.txt="{} / {} \xB0C"'.format(str(int(data['tool1']['actual'])),str(int(data['tool1']['target'])))
-	# 			self.nextionDisplay.nxWrite(tool1DisplayString)
-	# 		except:
-	# 			self._logger.info('no tool1?')
-	# 			tool1DisplayString = 'home.tool1Display.txt="No Tool1"'
-	# 			self.nextionDisplay.nxWrite(tool1DisplayString)
-	# 		# self.nextionDisplay.nxWrite('Tool0.tempDisplay.txt='+str(data['tool0']['actual'])+' / '+str(data['tool0']['target'])+' C\xB0')
-	# 		# self._logger.info(displayString)
-	# 		self.nextionDisplay.nxWrite(displayString)
-	# 		self.nextionDisplay.nxWrite(bedDisplayString)
-	# 		if float(data['tool0']['target'])>0:
-	# 			displayGraphValue = str(int(round(100*(float(data['tool0']['actual'])/float(data['tool0']['target'])))))
-	# 		else:
-	# 			displayGraphValue = str(100)
-	# 		# displayGraphString = 'Tool0.tempGraph.val={}'.format(displayGraphValue)
-	# 		# self.nextionDisplay.nxWrite(displayGraphString)
-	# 		if float(data['bed']['target'])>0:
-	# 			bedDisplayGraphValue = str(int(round(100*(float(data['bed']['actual'])/float(data['bed']['target'])))))
-	# 		else:
-	# 			bedDisplayGraphValue = str(100)
-	# 		# bedDisplayGraphString = 'Bed.tempGraph.val={}'.format(bedDisplayGraphValue)
-	# 		# self.nextionDisplay.nxWrite(bedDisplayGraphString)
-	# 		# self._logger.info(displayGraphString)
-
 	def on_printer_send_current_data(self,data):
 		if self.displayConnected:
 			# self._logger.info(data)
@@ -1230,7 +1214,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 					self.nextionDisplay.nxWrite(tool1DisplayString)
 					self.nextionDisplay.nxWrite(tool1DisplayGeneralString)
 				except:
-					self._logger.info('no tool1?')
+					# self._logger.info('no tool1?')
 					tool1DisplayString = self.currentPage + '.tool1Display.txt="No Tool1"'
 					tool1GeneralDisplayString = 'tool1.tool1Display.txt="No Tool1"'
 
@@ -1357,15 +1341,19 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 	def showM117(self, comm_instance, phase, cmd, cmd_type, gcode, *args, **kwargs):
 		# return
 		if gcode and cmd.startswith("M117"):
-							baseMessage = str(cmd)[4:].replace('\\','\\\\').replace('\"','\\"').strip()
-							self._logger.info("cmd as a string: {}; cmd as a repr: {}; baseMessage: {}".format(str(cmd), repr(cmd), baseMessage))
-							try:
-								if self.currentPage == 'home':
-									stateString = self.currentPage + '.msgDisplay.txt="Msg: {}"'.format(baseMessage)
-									self.nextionDisplay.nxWrite(stateString)
-									self.lastSentMessage = stateString
-							except Exception as e:
-								self._logger.info("Exception while trying to show the M117 message on the LCD.  Exception: {}".format(str(e)))
+			msgPrefix = "Msg: "
+			baseMessage = str(cmd)[4:].replace('\\','\\\\').replace('\"','\\"').strip()
+			self._logger.info("cmd as a string: {}; cmd as a repr: {}; baseMessage: {}".format(str(cmd), repr(cmd), baseMessage))
+			if len(baseMessage) > 100 - len(msgPrefix):
+				baseMessageShort = baseMessage[:(100-len(msgPrefix))]
+				baseMessage = baseMessageShort
+			try:
+				# if self.currentPage == 'home':
+				stateString = 'home' + '.msgDisplay.txt="{}{}"'.format(msgPrefix, baseMessage)
+				self.nextionDisplay.nxWrite(stateString)
+				self.lastSentMessage = stateString
+			except Exception as e:
+				self._logger.info("Exception while trying to show the M117 message on the LCD.  Exception: {}".format(str(e)))
 		return
 
 	def getMessage(self):

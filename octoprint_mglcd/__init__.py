@@ -626,7 +626,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 
 		# 	tftFiles = allFiles.
 
-		self.firmwareLocation = self._basefolder+"/static/supportfiles/nextion_uploader/m3-v3-0120.tft"
+		self.firmwareLocation = self._basefolder+"/static/supportfiles/nextion_uploader/m3-v3-0120-newCompile.tft"
 		flashCommand = "python " + self.firmwareFlashingProgram + " " + self.firmwareLocation + " " + targetPort
 		if (self._execute(flashCommand)[0] == 0):
 			self.tryToConnect = True

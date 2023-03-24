@@ -1770,10 +1770,12 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				self._printer.commands("M84")
 
 			if line == "button fan on":
-				self._printer.commands("M106 S255")
+				self._printer.commands("M106 P0 S255")
+				self._printer.commands("M106 P3 S255")
 
 			if line == "button fan off":
-				self._printer.commands("M106 S0")
+				self._printer.commands("M106 P0 S0")
+				self._printer.commands("M106 P3 S0")
 
 
 			# line = self.nextionSerial.readline()

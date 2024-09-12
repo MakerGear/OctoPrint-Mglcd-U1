@@ -618,7 +618,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 
 		#TODO - make this target the OctoPrint python binary in a more relative way - this version breaks if OctoPrint isn't running from "/home/pi/oprint/"
 		#TODO - make this select either the most recent (highest number) firmware file, instead of hardcoding it and changing that every time the version changes
-		self.firmwareLocation = self._basefolder+"/static/supportfiles/nextion_uploader/u1-v3-0127.tft"
+		self.firmwareLocation = self._basefolder+"/static/supportfiles/nextion_uploader/u1-v3-0128.tft"
 		flashCommand = "/home/pi/oprint/bin/python " + self.firmwareFlashingProgram + " " + self.firmwareLocation + " " + targetPort
 		if (self._execute(flashCommand)[0] == 0):
 			self.tryToConnect = True
@@ -646,6 +646,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 							return
 						# self.receiveLog.append(inByte)
 						self.receiveLog.append(inByte.decode("latin1"))
+						# self._logger.info("mglcd bytelog: {}".format(inByte.decode("latin1")))
 						# self._logger.info("receiveLog:")
 						# self._logger.info(self.receiveLog)
 			except Exception as e:
@@ -658,6 +659,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 
 	def parseLog(self):
 		# self._logger.info("parseLog triggered")
+		# self._logger.info("")
 		if '\x00' in self.receiveLog:
 			self.receiveLog.popleft()
 		elif '\xff' in self.receiveLog:
@@ -674,7 +676,8 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 					tempResponse.append(tempVal)
 					if not self.receiveLog:
 						break
-				self._logger.info(tempResponse)
+				# self._logger.info("677 - parseLog xff; tempResponse: ")
+				# self._logger.info(tempResponse)
 				self.processMessage(tempResponse)
 
 			except Exception as e:
@@ -684,7 +687,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 
 
 		elif '\n' in self.receiveLog:
-			# self._logger.info(" slashn in receiveLog")
+			self._logger.info(" slashn in receiveLog")
 			try:
 				# self.logLock.acquire()
 				tempLog = deque([])
@@ -710,6 +713,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 			except socket.error as e:
 				self._logger.info("Socket exception: "+str(e))
 				ip = "No IP"
+			# self._logger.info("klPPR line write log")
 			self.nextionDisplay.nxWrite('home.ip.txt="{}"'.format(ip))
 
 
@@ -722,6 +726,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 	def on_shutdown(self):
 		self._logger.info("Shutting down - trying to display shutdown info on LCD.")
 		try:
+			# self._logger.info("o3kr8 line write log")
 			self.nextionDisplay.nxWrite('page shuttingDown')
 		except:
 			return
@@ -748,8 +753,11 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 						self._logger.info("Got serial, trying to initialize Nextion.")
 
 						self.nextionDisplay = Nextion(self.nextionSerial)
+						# self._logger.info("GybMZ line write log")
 						# self.nextionDisplay.nxWrite('bauds=115200')
+						# self._logger.info("uah0i line write log")
 						# self.nextionDisplay.nxWrite('Tool0.tempDisplay.txt="No Data Yet"')
+						# self._logger.info("gIb5m line write log")
 						self.nextionDisplay.nxWrite('get home.handshake.txt')
 						self.connectionFails += 1
 						self.displayConnected = True
@@ -780,25 +788,35 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 
 	def handshakeReceived(self):
 
+		# self._logger.info("OJTiK line write log")
 		self.nextionDisplay.nxWrite('page home')
+		# self._logger.info("tgomC line write log")
 		self.nextionDisplay.nxWrite('home.bedDisplay.txt="No Data"')
+		# self._logger.info("sbWpV line write log")
 		self.nextionDisplay.nxWrite('home.tool0Display.txt="No Data"')
+		# self._logger.info("WOClu line write log")
 		self.nextionDisplay.nxWrite('home.tool1Display.txt="No Data"')
 		# self.getMessage()
 		self.nextionSerial.flushInput()
 		self.nextionSerial.flushOutput()
+		# self._logger.info("gxkVd line write log")
 		self.nextionDisplay.nxWrite('home.hostname.txt="{}"'.format(socket.gethostname()))
+		# self._logger.info("upkhF line write log")
 		self.nextionDisplay.nxWrite('home.name.txt="{}"'.format(str(octoprint.settings.Settings.get(octoprint.settings.settings(),["appearance", "name"])).strip('[\']')))
 		# try:
 		# 	ip = str(([l for l in ([ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")][:1], [[(s.connect(('8.8.8.8', 53)), s.getsockname()[0], s.close()) for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]]) if l][0][0]))
 		# except socket.error as e:
 		# 	self._logger.info("Socket exception: "+str(e))
 		# 	ip = "No IP"
+		# self._logger.info("U549a line write log")
 		# self.nextionDisplay.nxWrite('home.ip.txt="{}"'.format(ip))
 		self.populateIpAddress()
+		# self._logger.info("1Z0s6 line write log")
 		self.nextionDisplay.nxWrite('home.status.txt="Status: LCD Connected"')
 		self._logger.info("LCD Firmware version:")
+		# self._logger.info("p5ZR2 line write log")
 		self.nextionDisplay.nxWrite('get info.version.txt')
+		# self._logger.info("OQIaF line write log")
 		# self.nextionDisplay.nxWrite('Status.t0.txt="LCD Connected"')
 
 		self.displayConnected = True
@@ -809,6 +827,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 		self._logger.info("Connected to display on port:")
 		self._logger.info(self.nextionSerial.port)
 		self.connectedPort = self.nextionSerial.port
+		# self._logger.info("VdnNp line write log")
 		# self.nextionDisplay.nxWrite('touch_j')
 		self.populateWifiList()
 		self.ipTimer.start()
@@ -924,6 +943,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 		self._logger.info(str(len(self.wifiList))+" long; location: "+str(self.wifiListLocation))
 
 		for clearPos in range (0,5):
+			# self._logger.info("BFGct line write log")
 			self.nextionDisplay.nxWrite('wifilist.wifi{}.txt="{}"'.format(clearPos,('')))
 		lastPos = 5
 		if (len(self.wifiList)-j)<5:
@@ -932,6 +952,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 			try:
 				wifiString = 'wifilist.wifi{}.txt="{}"'.format(i,(self.wifiList[wifiCount+j]))
 				self._logger.info("wifiCount: "+str(wifiCount)+" ; wifiString: "+wifiString)
+				# self._logger.info("Ultdr line write log")
 				self.nextionDisplay.nxWrite(wifiString)
 				i += 1
 
@@ -949,11 +970,13 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 		i = 0
 
 		for clearPos in range (0,5):
+			# self._logger.info("CnyIz line write log")
 			self.nextionDisplay.nxWrite('files.file{}.txt="{}"'.format(clearPos,('')))
 		lastPos = 5
 		for fileCount in range(0,lastPos):
 			try:
 				fileNameString = 'files.file{}.txt="{}"'.format(i,(self.fileList[fileCount+j]['shortName']))
+				# self._logger.info("02Zt8 line write log")
 				self.nextionDisplay.nxWrite(fileNameString)
 				i += 1
 
@@ -970,11 +993,13 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 		i = 0
 
 		for clearPos in range (0,5):
+			# self._logger.info("5wKDx line write log")
 			self.nextionDisplay.nxWrite('deleteFiles.file{}.txt="{}"'.format(clearPos,('')))
 		lastPos = 5
 		for fileCount in range(0,lastPos):
 			try:
 				fileNameString = 'deleteFiles.file{}.txt="{}"'.format(i,(self.deleteList[fileCount+j]['shortName']))
+				# self._logger.info("IiHn3 line write log")
 				self.nextionDisplay.nxWrite(fileNameString)
 				i += 1
 
@@ -1113,45 +1138,67 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 		if self.displayConnected:
 			tempData = self._printer.get_current_temperatures()
 
+			# self._logger.info(tempData)
+
+
 			if self.currentPage == 'home' or self.currentPage == 'temperature' or self.currentPage == 'extruder':
 				try:
+					# self._logger.info("1121 - home/temp/extruder")
+
 					displayString = self.currentPage + '.tool0Display.txt="{} / {} \xB0C"'.format(str(int(tempData['tool0']['actual'])),str(int(tempData['tool0']['target'])))
 					displayGeneralString = 'tool0.tool0Display.txt="{} / {} \xB0C"'.format(str(int(tempData['tool0']['actual'])),str(int(tempData['tool0']['target'])))
 
+					# self._logger.info("AhdVk line write log")
 					self.nextionDisplay.nxWrite(displayString)
+					# self._logger.info("ZdRMk line write log")
 					self.nextionDisplay.nxWrite(displayGeneralString)
 				except:
 					self._logger.info('no tool0?')
 					tool0DisplayString = self.currentPage + '.tool0Display.txt="No Data"'
 					tool0GeneralDisplayString = 'tool0.tool0Display.txt="No Data"'
+					# self._logger.info("IwaV6 line write log")
 					self.nextionDisplay.nxWrite(tool0DisplayString)
+					# self._logger.info("0ASUQ line write log")
 					self.nextionDisplay.nxWrite(tool0GeneralDisplayString)
 
 				try:
+					# self._logger.info("1136 - home/temp/extruder")
+
 					tool1DisplayString = self.currentPage + '.tool1Display.txt="{} / {} \xB0C"'.format(str(int(tempData['tool1']['actual'])),str(int(tempData['tool1']['target'])))
 					tool1DisplayGeneralString = 'tool1.tool1Display.txt="{} / {} \xB0C"'.format(str(int(tempData['tool1']['actual'])),str(int(tempData['tool1']['target'])))
 
+					# self._logger.info("BCPsO line write log")
 					self.nextionDisplay.nxWrite(tool1DisplayString)
+					# self._logger.info("fexeC line write log")
 					self.nextionDisplay.nxWrite(tool1DisplayGeneralString)
 				except:
 					self._logger.info('no tool1?')
 					tool1DisplayString = self.currentPage + '.tool1Display.txt="No Tool1"'
 					tool1GeneralDisplayString = 'tool1.tool1Display.txt="No Tool1"'
 
+					# self._logger.info("15nfK line write log")
 					self.nextionDisplay.nxWrite(tool1DisplayString)
+					# self._logger.info("XnmdQ line write log")
 					self.nextionDisplay.nxWrite(tool1GeneralDisplayString)
 
 			if self.currentPage == 'printcontrols':
+				# self._logger.info("1152 - currentPage printcontrols")
+
 				if self._printer.get_state_id() == "PAUSED":
 					# If OctoPrint is paused, display "Resume" on the LCD
 					# If the display already says "Resume", don't change it
-					if self.nextionDisplay.nxRead('printcontrols.toggle.txt') != "Resume":
-						self.nextionDisplay.nxWrite('printcontrols.toggle.txt="Resume"')
+					# if self.nextionDisplay.nxRead('printcontrols.toggle.txt') != "Resume":
+					# self._logger.info("HJbp3 line write log")
+					self.nextionDisplay.nxWrite('printcontrols.toggle.txt="Resume"')
 				else:
 					# OctoPrint is not paused
 					# If the display already says "Pause", don't change it
-					if self.nextionDisplay.nxRead('printcontrols.toggle.txt') != "Pause":
-						self.nextionDisplay.nxWrite('printcontrols.toggle.txt="Pause"')
+					# tempToggleVal = self.nextionDisplay.nxRead('printcontrols.toggle.txt')
+					# if self.nextionDisplay.nxRead('printcontrols.toggle.txt') != "Pause":
+					# if tempToggleVal != "Pause":
+					# self._logger.info("k8oIv line write log")
+						# self._logger.info("tempToggleVal = []".format(str(tempToggleVal)))
+					self.nextionDisplay.nxWrite('printcontrols.toggle.txt="Pause"')
 
 				if (data['job']['file']['name']) == None:
 					filePrintingString = self.currentPage + '.fileName.txt="No File"'
@@ -1178,16 +1225,24 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				except Exception as e:
 					fileUsedFilamentString = self.currentPage + '.filament.txt="Filament: No Data"'
 
+				# self._logger.info("jchMC line write log")
 				self.nextionDisplay.nxWrite(filePrintingString)
+				# self._logger.info("0teny line write log")
 				self.nextionDisplay.nxWrite(fileTimeLeftString)
+				# self._logger.info("pCgY3 line write log")
 				self.nextionDisplay.nxWrite(fileUsedFilamentString)
 
 			if self.currentPage == 'home' or self.currentPage == 'temperature':
+				# self._logger.info("1195 - home/temp/extruder")
+
 				bedDisplayString = self.currentPage + '.bedDisplay.txt="{} / {} \xB0C"'.format(str(int(tempData['bed']['actual'])),str(int(tempData['bed']['target'])))
 
+				# self._logger.info("LfYUc line write log")
 				self.nextionDisplay.nxWrite(bedDisplayString)
 
 			if self.currentPage == 'home':
+				# self._logger.info("1202 - home/temp/extruder")
+
 				if (data['job']['file']['name']) == None:
 					filePrintingString = self.currentPage + '.filePrinting.txt="No File Selected"'
 				else:
@@ -1218,23 +1273,34 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				except:
 					stateString = self.currentPage + '.status.txt="Status: Connected"'
 
+				# self._logger.info("A4ssZ line write log")
 				self.nextionDisplay.nxWrite(filePrintingString)
+				# self._logger.info("WjnXj line write log")
 				self.nextionDisplay.nxWrite(fileProgressString)
+				# self._logger.info("W3eFz line write log")
 				self.nextionDisplay.nxWrite(fileTimeLeftString)
+				# self._logger.info("p6B6d line write log")
 				self.nextionDisplay.nxWrite(fileProgressPercentString)
+				# self._logger.info("A42HU line write log")
 				self.nextionDisplay.nxWrite(stateString)
 
 
 	def showMessage(self,message):
 		#this is a general function to switch to the messages page on the LCD and update the two text boxes.
+		# self._logger.info("jcOfp line write log")
 		self.nextionDisplay.nxWrite('messages.text0.txt="Message pending."')
+		# self._logger.info("1XLZE line write log")
 		self.nextionDisplay.nxWrite('messages.text1.txt=""')
+		# self._logger.info("ZbLfV line write log")
 		self.nextionDisplay.nxWrite('page messages')
 		if len(message)>254:
+			# self._logger.info("AQhyc line write log")
 			self.nextionDisplay.nxWrite('messages.text0.txt="{}"'.format(message[0:253]))
 			if len(message)>508:
+				# self._logger.info("fyjo6 line write log")
 				self.nextionDisplay.nxWrite('messages.text1.txt="{}"'.format(message[253:506]))
 		else:
+			# self._logger.info("12vFA line write log")
 			self.nextionDisplay.nxWrite('messages.text0.txt="{}"'.format(message))
 
 
@@ -1260,19 +1326,24 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 			self._logger.info("Handshake received.")
 			self.handshakeReceived()
 
-		if "page " in str(line):
+		if "page" in str(line):
+			self._logger.info(line)
 			self.currentPage = line.split(' ')[1]
+			self._logger.info(self.currentPage)
 			if self.currentPage == 'splash':
 				self.handshakeReceived()
 			if self.currentPage == 'home':
 				self.fileListLocation = 0
 				self.deleteListLocation = 0
 			if self.currentPage == 'wifipassword':
+				# self._logger.info("AKqLw line write log")
 				self.nextionDisplay.nxWrite('wifipassword.header.txt="Connecting to : {}"'.format(self.chosenSsid))
 			if self.currentPage == 'deleteConfirm':
 				if self.fileToDelete:
+					# self._logger.info("kHSBs line write log")
 					self.nextionDisplay.nxWrite('deleteConfirm.fileName.txt="{}"'.format(self.fileToDelete['shortName']))
 				else:
+					# self._logger.info("C8sDq line write log")
 					self.nextionDisplay.nxWrite('deleteConfirm.fileName.txt="No file selected"')
 
 				
@@ -1347,12 +1418,28 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				self.populatePrintList()
 				return
 			
+			if line == "button fileMenu":
+				self.fileListLocation = 0
+				self.currentPage = 'fileList'
+				self.currentFolder = ''
+				self.populatePrintList()
+				return
+
+
 			if line == "button deleteMenu page":
 				self.deleteListLocation = 0
 				self.currentPage = 'deleteList'
 				self.currentFolder = ''
 				self.populateDeleteList()
 				return
+
+			if line == "button deleteMenu":
+				self.deleteListLocation = 0
+				self.currentPage = 'deleteList'
+				self.currentFolder = ''
+				self.populateDeleteList()
+				return
+
 
 			if line == "button wifilist page":
 				self.wifiListLocation = 0
@@ -1371,6 +1458,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				self._execute("/home/pi/.octoprint/scripts/resetRpi.sh")
 
 			if line == "button ap stop":
+				# self._logger.info("HyIRT line write log")
 				self.nextionDisplay.nxWrite('page messages')
 				tempResponse = self._stop_ap()
 				self.showMessage(tempResponse)
@@ -1437,6 +1525,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 									self.populatePrintList()
 							else:
 								self._printer.select_file((self._file_manager.sanitize_path('local',(self.fileList[int(fileButton)+self.fileListLocation]['path']))), False)
+								# self._logger.info("MImsj line write log")
 								self.nextionDisplay.nxWrite('page printcontrols')
 								self._logger.info(line)
 
@@ -1486,6 +1575,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				# select and start printing the selected file
 				# pass
 				self._printer.start_print()
+				# self._logger.info("ZpVi4 line write log")
 				self.nextionDisplay.nxWrite('printcontrols.toggle.txt="Pause"')
 				self.currentPage = 'home'
 
@@ -1493,6 +1583,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				# select and start printing the selected file
 				# pass
 				self._printer.cancel_print()
+				# self._logger.info("Svbbu line write log")
 				self.nextionDisplay.nxWrite('printcontrols.toggle.txt="Pause"')
 				# self.currentPage = 'home'
 
@@ -1504,13 +1595,16 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 
 				# TODO code in here to go to either pauseConfirm or resumeConfirm depending on current print state; also toggle the labels
 				if self._printer.is_printing():
+					# self._logger.info("sD6Rx line write log")
 					self.nextionDisplay.nxWrite("page pauseConfirm")
 				elif self._printer.is_paused():
+					# self._logger.info("Jmuep line write log")
 					self.nextionDisplay.nxWrite("page resumeConfirm")
 
 			if line == "button print pause":
 				# select and start printing the selected file
 				# pass
+				# self._logger.info("gSyr5 line write log")
 				self.nextionDisplay.nxWrite('printcontrols.toggle.txt="Resume"')
 				self._printer.pause_print()
 				# self.currentPage = 'home'
@@ -1518,6 +1612,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 			if line == "button print resume":
 				# select and start printing the selected file
 				# pass
+				# self._logger.info("5HaOq line write log")
 				self.nextionDisplay.nxWrite('printcontrols.toggle.txt="Pause"')
 				self._printer.resume_print()
 				# self.currentPage = 'home'
@@ -1536,6 +1631,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				# pass
 
 			if line == "button lcd disconnect":
+				# self._logger.info("AAp0T line write log")
 				self.nextionDisplay.nxWrite('page notConnected')
 				self.tryToConnect = False
 				self.nextionSerial.flushInput()
@@ -1604,6 +1700,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 								self.fileToDelete = self.deleteList[int(fileButton)+self.deleteListLocation]
 								# self._logger.info(self.deleteList[int(fileButton)+self.deleteListLocation])
 								self._logger.info(self.fileToDelete)
+								# self._logger.info("tSRlJ line write log")
 								self.nextionDisplay.nxWrite('page deleteConfirm')
 
 
@@ -1769,6 +1866,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 		qrText = "http://" + self.hostname + "/"
 
 		# Write qrText to display via txt
+		# self._logger.info("ig3Lx line write log")
 		self.nextionDisplay.nxWrite('qrMenu.qr0.txt="' + qrText + '"')
 
 
@@ -1781,6 +1879,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 
 	def collectLogs(self):
 		# Change the display to the downloading page
+		# self._logger.info("xt0aC line write log")
 		self.nextionDisplay.nxWrite('page downloading')
 
 		# Determine if any USB drive is mounted
@@ -1803,6 +1902,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 		# If no USB drive is mounted, report an error and return to the home page
 		if not mountedDrive:
 			self._logger.info("No USB drive mounted, cannot collect logs.")
+			# self._logger.info("JPwbg line write log")
 			self.nextionDisplay.nxWrite('downloading.t1.txt="Error: No USB drive found."')
 			return
 
@@ -1835,6 +1935,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 			self._logger.info("collectLogs failed, exception: " + str(e))
 		
 		# return to the home page
+		# self._logger.info("GSjda line write log")
 		self.nextionDisplay.nxWrite("page home")
 
 # If you want your plugin to be registered within OctoPrint under a different name than what you defined in setup.py

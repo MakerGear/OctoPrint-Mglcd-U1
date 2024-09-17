@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+
 import serial
 import time
 import sys
@@ -11,6 +11,9 @@ import array
 import glob
 import copy
 import math
+import datetime
+import os
+import shutil
 from numbers import Number
 from threading import Thread
 from multiprocessing import Process
@@ -27,8 +30,6 @@ from flask import jsonify, make_response
 import logging
 from octoprint.server import admin_permission
 import json
-
-
 
 
 ### (Don't forget to remove me)
@@ -126,7 +127,7 @@ class WaveForm(Component):
 		super(WaveForm, self).__init__(page,id,name)
 
 	def add(self,channel, value):
-		print str(self.id)+":"+str(channel)+" => "+str(value)
+		print(str(self.id)+":"+str(channel)+" => "+str(value))
 		self.page.nextion.nxWrite("add " + self.id + "," + channel + "," + value)
 
 class Gauge(Component):
@@ -204,22 +205,22 @@ class Nextion(object):
 	YELLOW=65504
 
 	def __init__(self,ser,pageDefinitions=None):
-		print "Nextion initializing."
+		print("Nextion initializing.")
 		self.pages = []
 		self.debug = False
 		self.ser = ser
 		while True:
 			if self.debug:
-				print "in init whileTrue loop"
+				print("in init whileTrue loop")
 			try:
 				if self.debug:
-					print "in init whileTrue loop - trying"
+					print("in init whileTrue loop - trying")
 				# self.setBkCmd(3)
 				break
 			except:
-				print "Wait..."
+				print("Wait...")
 				if self.debug:
-					print "in init whileTrue loop - exception"
+					print("in init whileTrue loop - exception")
 				time.sleep(1)
 
 		if pageDefinitions is not None:
@@ -245,7 +246,7 @@ class Nextion(object):
 
 	def setBkCmd(self,value):
 		if self.debug:
-			print "nextion - setBkCmd"
+			print("nextion - setBkCmd")
 		self.set('bkcmd',value)
 
 	def setDim(self,value):
@@ -285,10 +286,8 @@ class Nextion(object):
 		if s[0]!=0x01:
 			raise ValueError(Nextion.getErrorMessage(s[0]))
 
-
-
 	def setValue(self,id,value):
-		print id+'.val="'+str(value)+'"'
+		print(id+'.val="'+str(value)+'"')
 		s=self.nxWrite(id+'.val='+str(value))
 		if s[0]!=0x01:
 			raise ValueError(Nextion.getErrorMessage(s[0])+": id: "+id+" value:"+ value)
@@ -339,7 +338,7 @@ class Nextion(object):
 
 	def set(self,key,value):
 		if self.debug:
-			print "nextion - set"
+			print("nextion - set")
 		s=self.nxWrite(key+'='+str(value))
 		if s[0]!=0x01:
 			raise ValueError(Nextion.getErrorMessage(s[0])+": "+key+"="+str(value))
@@ -351,16 +350,18 @@ class Nextion(object):
 
 	def nxWrite(self,s):
 		if self.debug:
-			print "nextion - nxWrite"
-		self.ser.write(s)
-		self.ser.write(chr(255))
-		self.ser.write(chr(255))
-		self.ser.write(chr(255))
+			print("nextion - nxWrite")
+		# self.ser.write(s)
+		# self.ser.write(chr(255))
+		# self.ser.write(chr(255))
+		# self.ser.write(chr(255))
+		self.ser.write(s.encode("latin1", "backslashreplace"))
+		self.ser.write(b"\xFF\xFF\xFF")
 		# return self.nxRead()
 
 	def nxRead(self,cmax=0,timeout=0.5):
 		if self.debug:
-			print "nextion - nxRead"
+			print("nextion - nxRead")
 		s=[]
 		done=False
 		def _reader():
@@ -368,7 +369,7 @@ class Nextion(object):
 			time_now = time.clock()
 			while timeout==0 or (time.clock()-time_now)<timeout:
 				if self.debug:
-					print "nextion - nxRead loop, while timeout==0 etc..."
+					print("nextion - nxRead loop, while timeout==0 etc...")
 				try:
 					r = self.ser.read()
 					if r is None or r=="":
@@ -380,7 +381,7 @@ class Nextion(object):
 
 					if c!=0x00:        
 						if self.debug is True:
-							print "\/ :"+str(c)+":"+str(len(s))+":"+str(count)
+							print("\/ :"+str(c)+":"+str(len(s))+":"+str(count))
 
 						s.append(c)
 						if len(s)==cmax:
@@ -389,7 +390,7 @@ class Nextion(object):
 							count=count+1
 							if count==3:
 								if self.debug is True:
-									print "!!"
+									print("!!")
 								return
 						# elif c==0x0A:
 						# 	count=0
@@ -399,19 +400,19 @@ class Nextion(object):
 						else:
 							count=0
 						if self.debug is True:
-							print "/\ :"+str(c)+":"+str(len(s))+":"+str(count)
+							print("/\ :"+str(c)+":"+str(len(s))+":"+str(count))
 				except:
 					# self._logger.info(err)
 					# self._logger.info("Error when reading!")
-					print "Error when reading"
-			print "Timeout"
+					print("Error when reading")
+			print("Timeout")
 			if self.debug:
-				print "nextion - timeout in nxRead"
+				print("nextion - timeout in nxRead")
 
 		if self.debug:
-			print "nextion - broke out of _reader loop without error."
+			print("nextion - broke out of _reader loop without error.")
 		if self.debug:
-			print s
+			print(s)
 		t = Thread(target=_reader)
 		t.start()
 		t.join()
@@ -427,8 +428,6 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 						octoprint.plugin.ShutdownPlugin):
 
 	##~~ SettingsPlugin mixin
-
-
 
 	def __init__(self):
 		self.receiveLog = deque([])
@@ -446,13 +445,16 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 		self.ipTimer = octoprint.util.RepeatedTimer(120, self.populateIpAddress)
 		self.currentPage = ''
 		self.files = {}
+		self.deleteFiles = {}
 		self.fileList = defaultdict(list)
 		self.wifiList = defaultdict(list)
+		self.deleteList = defaultdict(list)
 		self.currentFolder = ''
 		self.currentPath = ''
 		self.previousFolderList = []
 		self.filamentInFile = 0.0
 		self.fileListLocation = 0
+		self.deleteListLocation = 0
 		self.wifiListLocation = 0
 		self.connectedPort = ''
 		self.flashingFirmware = False
@@ -477,8 +479,6 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 		else:
 			import socket
 			return socket.gethostname() + ".local"
-
-
 
 	def serial_ports(self):
 		# With all credit to SO Thomas.
@@ -529,7 +529,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 		# kwargs.update(dict(async=True, stdout=sarge.Capture(), stderr=sarge.Capture()))
 
 		try:
-			p = sarge.run(command, async=True, stdout=sarge.Capture(), stderr=sarge.Capture())
+			p = sarge.run(command, async_=True, stdout=sarge.Capture(), stderr=sarge.Capture())
 			while len(p.commands) == 0:
 				# somewhat ugly... we can't use wait_events because
 				# the events might not be all set if an exception
@@ -563,7 +563,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 			while p.commands[0].poll() is None:
 				lines = p.stderr.readlines(timeout=0.5)
 				if lines:
-					lines = map(lambda x: self._to_unicode(x, errors="replace"), lines)
+					lines = [self._to_unicode(x, errors="replace") for x in lines]
 					#_log_stderr(*lines)
 					all_stderr += list(lines)
 					# self._plugin_manager.send_plugin_message("mgsetup", dict(commandError = all_stderr))
@@ -571,7 +571,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 
 				lines = p.stdout.readlines(timeout=0.5)
 				if lines:
-					lines = map(lambda x: self._to_unicode(x, errors="replace"), lines)
+					lines = [self._to_unicode(x, errors="replace") for x in lines]
 					#_log_stdout(*lines)
 					all_stdout += list(lines)
 					self._logger.info(lines)
@@ -584,7 +584,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 
 		lines = p.stderr.readlines()
 		if lines:
-			lines = map(lambda x: self._to_unicode(x, errors="replace"), lines)
+			lines = [self._to_unicode(x, errors="replace") for x in lines]
 			#_log_stderr(*lines)
 			all_stderr += lines
 			# self._plugin_manager.send_plugin_message("mgsetup", dict(commandError = all_stderr))
@@ -593,7 +593,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 
 		lines = p.stdout.readlines()
 		if lines:
-			lines = map(lambda x: self._to_unicode(x, errors="replace"), lines)
+			lines = [self._to_unicode(x, errors="replace") for x in lines]
 			#_log_stdout(*lines)
 			all_stdout += lines
 
@@ -601,7 +601,6 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 			self._logger.info(all_stderr)
 			# self._plugin_manager.send_plugin_message("mgsetup", dict(commandResponse = all_stdout))
 		return p.returncode, all_stdout, all_stderr
-
 
 
 	def flashFirmware(self):
@@ -614,27 +613,12 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 		self.nextionSerial.close()
 		self.firmwareFlashingProgram = self._basefolder+"/static/supportfiles/nextion_uploader/nextion.py"
 
-
-		# try:
-		# 	allFiles = os.listdir(self._basefolder+"/static/supportfiles/nextion_uploader/")
-		# 	pattern = '*.tft$'
-		# 			try:
-		# 				tftFiles = re.search(pattern, allFiles)
-		# 				if len(tftFiles)>0:
-		# 					tftVersion
-
-
-		# 	tftFiles = allFiles.
-
-		self.firmwareLocation = self._basefolder+"/static/supportfiles/nextion_uploader/m3-v3-0120-newCompile.tft"
-		flashCommand = "python " + self.firmwareFlashingProgram + " " + self.firmwareLocation + " " + targetPort
+		self.firmwareLocation = self._basefolder+"/static/supportfiles/nextion_uploader/u1-v3-0124.tft"
+		flashCommand = "/home/pi/oprint/bin/python " + self.firmwareFlashingProgram + " " + self.firmwareLocation + " " + targetPort
 		if (self._execute(flashCommand)[0] == 0):
 			self.tryToConnect = True
 			self._logger.info("Firmware flashed!")
 			self.connectionFails = 0
-
-
-
 
 
 	def interval(self):
@@ -642,7 +626,6 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 			return self.connectionMaxTimeBetween
 		else:
 			return ((self.connectionFails + 1) * 5)
-
 
 
 	def nextionTimer(self):
@@ -656,7 +639,8 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 						inByte = self.nextionSerial.read()
 						if inByte is None or inByte=="":
 							return
-						self.receiveLog.append(inByte)
+						# self.receiveLog.append(inByte)
+						self.receiveLog.append(inByte.decode("latin1"))
 						# self._logger.info("receiveLog:")
 						# self._logger.info(self.receiveLog)
 			except Exception as e:
@@ -667,12 +651,11 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 					self.displayConnected = False
 
 
-
 	def parseLog(self):
 		# self._logger.info("parseLog triggered")
 		if '\x00' in self.receiveLog:
 			self.receiveLog.popleft()
-		if '\xff' in self.receiveLog:
+		elif '\xff' in self.receiveLog:
 			# self._logger.info("xff in receiveLog")
 			try:
 				ffCount = 0
@@ -695,9 +678,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				traceback.print_exc()
 
 
-				
-
-		if '\n' in self.receiveLog:
+		elif '\n' in self.receiveLog:
 			# self._logger.info(" slashn in receiveLog")
 			try:
 				# self.logLock.acquire()
@@ -716,7 +697,6 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				self._logger.info(tempLog)
 				traceback.print_exc()
 
-				
 
 	def populateIpAddress(self):
 		if self.displayConnected:
@@ -730,24 +710,9 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 
 	def on_after_startup(self):
 		self._logger.info("Mglcd plugin loaded!")
-		# self._logger.info(self._file_manager.list_files(path='nextion'))
 		self._printer.register_callback(self)
 		self.displayConnectionTimer.start()
-		
-		# self.populatePrintList()
 
-		# self.connect_to_display()
-		# self._logger.info(octoprint.filemanager.storage.list_files(FileDestinations.LOCAL))
-		# netconnectdModule = self._plugin_manager.get_plugin("netconnectd")
-		# self._logger.info(netconnectd)
-		# netconnectd = NetconnectdSettingsPlugin.__init__()
-		# import netconnectd
-		# setattr(netconnectd, "_logger", self._logger)
-		# setattr(netconnectd, "_settings", self._settings)
-
-		# self._logger.info(netconnectd.get_api_commands())
-		# self._logger.info(netconnectd.on_api_command("refresh_wifi",""))
-		# self._logger.info(self._send_message("list_wifi",{}))
 
 	def on_shutdown(self):
 		self._logger.info("Shutting down - trying to display shutdown info on LCD.")
@@ -788,9 +753,6 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 							self.serialParseTimer.start()
 						except RuntimeError as e:
 							self._logger.info("Exception!  Probably not happy about starting threads again?  Actual error: "+str(e))
-
-
-
 
 					# except RuntimeError as e:
 					except OSError as e:
@@ -847,9 +809,6 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 		self.ipTimer.start()
 
 
-
-
-
 	def shortenFileName(self, longName):
 		if len(longName) > 48:
 			return (longName[:30]+'...'+longName[-10:])
@@ -870,15 +829,12 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 	def populatePrintList(self):
 		self.files = self._file_manager.list_files(path=self.currentPath)
 		self._logger.info(self.files)
-		# for i in range(0, len(self.files)):
 		i = 0
 		tempFileList = defaultdict(list)
 		tempFolderList = defaultdict(list)
 		navigateUpList = defaultdict(list)
 		self.fileList = OrderedDict()
 		if self.currentPath != '':
-			# self._logger.info("previousFolderList:")
-			# self._logger.info(self.previousFolderList)
 			self.fileList[0] = [
 								{'name' : 'up' },
 								{'path' : '' },
@@ -886,8 +842,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 								{'type' : 'folder' }
 							]
 			i = 1
-		# for file in self.files['local'].keys():
-		for file in sorted(self.files['local'].keys(), key = lambda x: x.lower()):
+		for file in sorted(list(self.files['local'].keys()), key = lambda x: x.lower()):
 			if self.files['local'][file]['type'] == 'folder':
 				self.fileList[i] = [
 									{'name' : self.files['local'][file]['name'] },
@@ -896,11 +851,8 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 									{'type' : self.files['local'][file]['type'] }
 									]
 				i += 1
-				# self._logger.info(self._file_manager.split_path("", self.files['local'][file]['name']))
 
-		# i = 0
-		# for file in self.files['local'].keys():
-		for file in sorted(self.files['local'].keys(), key = lambda x: x.lower()):
+		for file in sorted(list(self.files['local'].keys()), key = lambda x: x.lower()):
 
 			if self.files['local'][file]['type'] == 'machinecode':
 				self.fileList[i] = [
@@ -910,20 +862,49 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 									{'type' : self.files['local'][file]['type'] }
 								]
 				i += 1
-				# self._logger.info(self._file_manager.split_path("", self.files['local'][file]['name']))
 
-			# self._logger.info([self.files['local'][file]['name'], self.files['local'][file]['path']])
-
-		# if len(tempFolderList) > 0:
-			# tempFolderList = navigateUpList + tempFolderList
-		# self._logger.info(tempFileList)
-		# self._logger.info(tempFolderList)
-		# self.fileList.append(tempFolderList)
-		# self.fileList.append(tempFileList)
-		# self.fileList = tempFolderList + tempFileList
 		self._logger.info(self.fileList)
-		self.showFileList()
 
+		self.showFileList()
+		# Brakes the print menu
+		#self.showDeleteFileList()
+
+	def populateDeleteList(self):
+		self.deleteFiles = self._file_manager.list_files(path=self.currentPath)
+		self._logger.info(self.deleteFiles)
+		i = 0
+		self.deleteList = OrderedDict()
+		if self.currentPath != '':
+			self.deleteList[0] = [
+								{'name' : 'up' },
+								{'path' : '' },
+								{'shortName' : '..' },
+								{'type' : 'folder' }
+							]
+			i = 1
+		for file in sorted(list(self.deleteFiles['local'].keys()), key = lambda x: x.lower()):
+			if self.deleteFiles['local'][file]['type'] == 'folder':
+				self.deleteList[i] = [
+									{'name' : self.deleteFiles['local'][file]['name'] },
+									{'path' : self.deleteFiles['local'][file]['path'] },
+									{'shortName' : self.shortenFileName(self.deleteFiles['local'][file]['name']) + "/" },
+									{'type' : self.deleteFiles['local'][file]['type'] }
+									]
+				i += 1
+
+		for file in sorted(list(self.deleteFiles['local'].keys()), key = lambda x: x.lower()):
+
+			if self.deleteFiles['local'][file]['type'] == 'machinecode':
+				self.deleteList[i] = [
+									{'name' : self.deleteFiles['local'][file]['name'] },
+									{'path' : self.deleteFiles['local'][file]['path'] },
+									{'shortName' : self.shortenFileName(self.deleteFiles['local'][file]['name']) },
+									{'type' : self.deleteFiles['local'][file]['type'] }
+								]
+				i += 1
+
+		self._logger.info(self.deleteList)
+		self.showDeleteFileList()
 
 	def populateWifiList(self):
 		tempWifiList = self._send_message("list_wifi",{})
@@ -942,11 +923,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 		j = self.wifiListLocation
 		i = 0
 		self._logger.info(str(len(self.wifiList))+" long; location: "+str(self.wifiListLocation))
-		# for fileName in self.fileList.keys():
-		# if len(self.fileList-self.fileListLocation) > 5:
-		# 	lastPos = 5
-		# else:
-		# 	lastPos = len(self.fileList-self.fileListLocation)
+
 		for clearPos in range (0,5):
 			self.nextionDisplay.nxWrite('wifilist.wifi{}.txt="{}"'.format(clearPos,('')))
 		lastPos = 5
@@ -954,20 +931,11 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 			lastPos = (len(self.wifiList) - j)
 		for wifiCount in range(0,lastPos):
 			try:
-				# self._logger.info(fileName)
-				# self._logger.info(self.fileList[fileName])
-				# self._logger.info(self.fileList[fileName][0]['name'])
-				# fileNameString = 'files.file{}.txt="{}"'.format(i,(self.fileList[fileName][2]['shortName']))
-
-
 				wifiString = 'wifilist.wifi{}.txt="{}"'.format(i,(self.wifiList[wifiCount+j]))
-				# self._logger.info(wifiString)
 				self._logger.info("wifiCount: "+str(wifiCount)+" ; wifiString: "+wifiString)
 				self.nextionDisplay.nxWrite(wifiString)
-				# j += 1
 				i += 1
-				# self._logger.info(fileNameString)
-				# self._logger.info(self.fileListLocation)
+
 			except KeyError as e:
 				self._logger.info("Encountered key error: " + str(e))
 				break
@@ -977,33 +945,19 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				break
 
 
-
 	def showFileList(self):
 		j = self.fileListLocation
 		i = 0
-		# for fileName in self.fileList.keys():
-		# if len(self.fileList-self.fileListLocation) > 5:
-		# 	lastPos = 5
-		# else:
-		# 	lastPos = len(self.fileList-self.fileListLocation)
+
 		for clearPos in range (0,5):
 			self.nextionDisplay.nxWrite('files.file{}.txt="{}"'.format(clearPos,('')))
 		lastPos = 5
 		for fileCount in range(0,lastPos):
 			try:
-				# self._logger.info(fileName)
-				# self._logger.info(self.fileList[fileName])
-				# self._logger.info(self.fileList[fileName][0]['name'])
-				# fileNameString = 'files.file{}.txt="{}"'.format(i,(self.fileList[fileName][2]['shortName']))
-
-
 				fileNameString = 'files.file{}.txt="{}"'.format(i,(self.fileList[fileCount+j][2]['shortName']))
-
 				self.nextionDisplay.nxWrite(fileNameString)
-				# j += 1
 				i += 1
-				# self._logger.info(fileNameString)
-				# self._logger.info(self.fileListLocation)
+
 			except KeyError as e:
 				self._logger.info("Encountered key error: " + str(e))
 				break
@@ -1012,18 +966,31 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				self._logger.info("More general exception in showFileList: "+str(e))
 				break
 
+	def showDeleteFileList(self):
+		j = self.deleteListLocation
+		i = 0
 
+		for clearPos in range (0,5):
+			self.nextionDisplay.nxWrite('deleteFiles.file{}.txt="{}"'.format(clearPos,('')))
+		lastPos = 5
+		for fileCount in range(0,lastPos):
+			try:
+				fileNameString = 'deleteFiles.file{}.txt="{}"'.format(i,(self.deleteList[fileCount+j][2]['shortName']))
+				self.nextionDisplay.nxWrite(fileNameString)
+				i += 1
 
-	def setQR(self):
-		# WIFI:T:WPA;S:network;P:password;;
+			except KeyError as e:
+				self._logger.info("Encountered key error: " + str(e))
+				break
 
-		pass
-
-
+			except Exception as e:
+				self._logger.info("More general exception in showDeleteFileList: "+str(e))
+				break
 
 	def on_settings_save(self, data):
 		octoprint.plugin.SettingsPlugin.on_settings_save(self, data)
 		self.address = self._settings.get(["socket"])
+
 
 	def get_settings_defaults(self):
 		return dict(
@@ -1031,6 +998,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 			hostname=None,
 			timeout=10
 		)
+
 
 	def get_template_configs(self):
 		return [
@@ -1047,8 +1015,11 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 			forget_wifi=[],
 			reset=[]
 		)
+	
+
 	def is_api_adminonly(self):
 		return True
+
 
 	def on_api_get(self, request):
 		try:
@@ -1065,6 +1036,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 			status=status,
 			hostname=self.hostname
 		))
+
 
 	def on_api_command(self, command, data):
 		if command == "refresh_wifi":
@@ -1093,8 +1065,9 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 
 		elif command == "stop_ap":
 			self._stop_ap()
-	##~~ AssetPlugin mixin
 
+
+	##~~ AssetPlugin mixin
 	def get_assets(self):
 		# Define your plugin's asset files to automatically include in the
 		# core UI here.
@@ -1114,8 +1087,8 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 	def get_template_configs(self):
 		return [dict(type="settings", template="octoprint_mglcd_settings.jinja2", div="mglcdSettings", custom_bindings=True)]
 
-	##~~ Softwareupdate hook
 
+	##~~ Softwareupdate hook
 	def get_update_information(self):
 		# Define the configuration for your plugin to use with the Software Update
 		# Plugin here. See https://github.com/foosel/OctoPrint/wiki/Plugin:-Software-Update
@@ -1136,45 +1109,10 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 			)
 		)
 
-	# def on_printer_add_temperature(self, data):
-	# 	if self.displayConnected:
-	# 		# self._logger.info(data)
-	# 		# self._logger.info(data['tool0']['actual'])
-	# 		# displayString = str('Tool0.tempDisplay.txt='+str(data['tool0']['actual'])+' / '+str(data['tool0']['target'])+' C\xB0')
-	# 		displayString = 'home.tool0Display.txt="{} / {} \xB0C"'.format(str(int(data['tool0']['actual'])),str(int(data['tool0']['target'])))
-	# 		bedDisplayString = 'home.bedDisplay.txt="{} / {} \xB0C"'.format(str(int(data['bed']['actual'])),str(int(data['bed']['target'])))
-	# 		try:
-	# 			tool1DisplayString = 'home.tool1Display.txt="{} / {} \xB0C"'.format(str(int(data['tool1']['actual'])),str(int(data['tool1']['target'])))
-	# 			self.nextionDisplay.nxWrite(tool1DisplayString)
-	# 		except:
-	# 			self._logger.info('no tool1?')
-	# 			tool1DisplayString = 'home.tool1Display.txt="No Tool1"'
-	# 			self.nextionDisplay.nxWrite(tool1DisplayString)
-	# 		# self.nextionDisplay.nxWrite('Tool0.tempDisplay.txt='+str(data['tool0']['actual'])+' / '+str(data['tool0']['target'])+' C\xB0')
-	# 		# self._logger.info(displayString)
-	# 		self.nextionDisplay.nxWrite(displayString)
-	# 		self.nextionDisplay.nxWrite(bedDisplayString)
-	# 		if float(data['tool0']['target'])>0:
-	# 			displayGraphValue = str(int(round(100*(float(data['tool0']['actual'])/float(data['tool0']['target'])))))
-	# 		else:
-	# 			displayGraphValue = str(100)
-	# 		# displayGraphString = 'Tool0.tempGraph.val={}'.format(displayGraphValue)
-	# 		# self.nextionDisplay.nxWrite(displayGraphString)
-	# 		if float(data['bed']['target'])>0:
-	# 			bedDisplayGraphValue = str(int(round(100*(float(data['bed']['actual'])/float(data['bed']['target'])))))
-	# 		else:
-	# 			bedDisplayGraphValue = str(100)
-	# 		# bedDisplayGraphString = 'Bed.tempGraph.val={}'.format(bedDisplayGraphValue)
-	# 		# self.nextionDisplay.nxWrite(bedDisplayGraphString)
-	# 		# self._logger.info(displayGraphString)
 
 	def on_printer_send_current_data(self,data):
 		if self.displayConnected:
-			# self._logger.info(data)
 			tempData = self._printer.get_current_temperatures()
-			# self.nextionDisplay.nxWrite('sendme')
-			# self.nextionDisplay.nxWrite('get dp')
-
 
 			if self.currentPage == 'home' or self.currentPage == 'temperature' or self.currentPage == 'extruder':
 				try:
@@ -1190,12 +1128,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 					self.nextionDisplay.nxWrite(tool0DisplayString)
 					self.nextionDisplay.nxWrite(tool0GeneralDisplayString)
 
-
-
-				# displayString = 'home.tool0Display.txt="{} / {} \xB0C"'.format(str(int(data['tool0']['actual'])),str(int(data['tool0']['target'])))
-				# bedDisplayString = 'home.bedDisplay.txt="{} / {} \xB0C"'.format(str(int(data['bed']['actual'])),str(int(data['bed']['target'])))
 				try:
-					# tool1DisplayString = 'home.tool1Display.txt="{} / {} \xB0C"'.format(str(int(data['tool1']['actual'])),str(int(data['tool1']['target'])))
 					tool1DisplayString = self.currentPage + '.tool1Display.txt="{} / {} \xB0C"'.format(str(int(tempData['tool1']['actual'])),str(int(tempData['tool1']['target'])))
 					tool1DisplayGeneralString = 'tool1.tool1Display.txt="{} / {} \xB0C"'.format(str(int(tempData['tool1']['actual'])),str(int(tempData['tool1']['target'])))
 
@@ -1209,54 +1142,51 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 					self.nextionDisplay.nxWrite(tool1DisplayString)
 					self.nextionDisplay.nxWrite(tool1GeneralDisplayString)
 
-
-
-
-
-
-
-
 			if self.currentPage == 'printcontrols':
+				if self._printer.get_state_id() == "PAUSED":
+					# If OctoPrint is paused, display "Resume" on the LCD
+					# If the display already says "Resume", don't change it
+					if self.nextionDisplay.nxRead('printcontrols.toggle.txt') != "Resume":
+						self.nextionDisplay.nxWrite('printcontrols.toggle.txt="Resume"')
+				else:
+					# OctoPrint is not paused
+					# If the display already says "Pause", don't change it
+					if self.nextionDisplay.nxRead('printcontrols.toggle.txt') != "Pause":
+						self.nextionDisplay.nxWrite('printcontrols.toggle.txt="Pause"')
+
 				if (data['job']['file']['name']) == None:
 					filePrintingString = self.currentPage + '.fileName.txt="No File"'
 				else:
 					filePrintingString = self.currentPage + '.fileName.txt="{}"'.format(data['job']['file']['name'])
 
-				try:
+				if data['job']['estimatedPrintTime'] is not None:
 					tempTime = int(data['job']['estimatedPrintTime']/60)
 					if tempTime > 60:
 						tempTimeString = str(int(math.floor(tempTime/60)))+" hrs " + str(int(math.fmod(tempTime,60))) + " min"
 					else:
 						tempTimeString = str(tempTime) + " min"
 					fileTimeLeftString = self.currentPage + '.fileTime.txt="Print Time: {}"'.format(tempTimeString)
-				except Exception as e:
+				#except Exception as e:
+				else:
 					fileTimeLeftString = self.currentPage + '.fileTime.txt="Print Time: No Data"'
-					self._logger.info("Exception when populating file print time: "+str(e))
-
-
+					self._logger.info("Exception when populating file print time:")
 
 				try:
 					self.filamentInFile = 0.0
-					for tool in data['job']['filament'].keys():
+					for tool in list(data['job']['filament'].keys()):
 						self.filamentInFile = self.filamentInFile + data['job']['filament'][tool]['length']
 					fileUsedFilamentString = self.currentPage + '.filament.txt="Filament: {} m"'.format(str(round((self.filamentInFile/1000),2)))
 				except Exception as e:
 					fileUsedFilamentString = self.currentPage + '.filament.txt="Filament: No Data"'
-					# self._logger.info("Filament usage exception: "+str(e))
-					# self._logger.info(data['job']['filament'])
 
 				self.nextionDisplay.nxWrite(filePrintingString)
 				self.nextionDisplay.nxWrite(fileTimeLeftString)
 				self.nextionDisplay.nxWrite(fileUsedFilamentString)
 
-
-
-
 			if self.currentPage == 'home' or self.currentPage == 'temperature':
 				bedDisplayString = self.currentPage + '.bedDisplay.txt="{} / {} \xB0C"'.format(str(int(tempData['bed']['actual'])),str(int(tempData['bed']['target'])))
 
 				self.nextionDisplay.nxWrite(bedDisplayString)
-
 
 			if self.currentPage == 'home':
 				if (data['job']['file']['name']) == None:
@@ -1273,7 +1203,6 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 					fileProgressPercentString = self.currentPage + '.filePercent.txt="{}%"'.format(str(int(data['progress']['completion'])))
 				except:
 					fileProgressPercentString = self.currentPage + '.filePercent.txt="0%"'
-
 
 				try:
 					tempTime = int(data['progress']['printTimeLeft']/60)
@@ -1297,13 +1226,6 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				self.nextionDisplay.nxWrite(stateString)
 
 
-
-			# if self.currentPage == "temperature":
-
-
-			# self.getMessage()
-			# self._logger.info(self.nextionDisplay.nxRead())
-
 	def showMessage(self,message):
 		#this is a general function to switch to the messages page on the LCD and update the two text boxes.
 		self.nextionDisplay.nxWrite('messages.text0.txt="Message pending."')
@@ -1315,7 +1237,6 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				self.nextionDisplay.nxWrite('messages.text1.txt="{}"'.format(message[253:506]))
 		else:
 			self.nextionDisplay.nxWrite('messages.text0.txt="{}"'.format(message))
-
 
 
 	def getMessage(self):
@@ -1333,23 +1254,12 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 			# tt.start()
 
 	def processMessage(self, lineRaw):
-		# while self.nextionSerial.inWaiting() > 1:
-		# self._logger.info("processMessage triggered with lineRaw: ")
-		# self._logger.info(lineRaw)
-		# line = array.array('B',lineRaw).tostring()
-		# line = ''.join(map(chr,lineRaw))
 		line = ''.join(lineRaw)
-		# self._logger.info("processMessaged called with: "+line)
-		# self._logger.info("str version: "+str(line))
 		line = line.rstrip()
-		# line = lineRaw
-		# self._logger.info(line)
-		# self._logger.info("previousFolderList:")
-		# self._logger.info(self.previousFolderList)
+
 		if "MAKERGEAR" in str(line):
 			self._logger.info("Handshake received.")
 			self.handshakeReceived()
-
 
 		if "page " in str(line):
 			self.currentPage = line.split(' ')[1]
@@ -1357,24 +1267,21 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				self.handshakeReceived()
 			if self.currentPage == 'home':
 				self.fileListLocation = 0
+				self.deleteListLocation = 0
 			if self.currentPage == 'wifipassword':
 				self.nextionDisplay.nxWrite('wifipassword.header.txt="Connecting to : {}"'.format(self.chosenSsid))
-								
 
 		if "set" in str(line):
-			# self._logger.info("1")
 			if "tool0:" in str(line):
 				m = re.search('(?<=:)\d+', str(line))
 				self._logger.info(m.group(0))
 				self._printer.set_temperature("tool0",int(m.group(0)))
-				# self._logger.info(m.group(0))
-				# self._logger.info("regex caught")
+
 			if "tool1:" in str(line):
 				m = re.search('(?<=:)\d+', str(line))
 				self._logger.info(m.group(0))
 				self._printer.set_temperature("tool1",int(m.group(0)))
-				# self._logger.info(m.group(0))
-				# self._logger.info("regex caught")
+
 			if "bed:" in str(line):
 					m = re.search('(?<=:)\d+', str(line))
 					self._logger.info(m.group(0))
@@ -1386,19 +1293,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 							"M140 P2 S"+str(int(m.group(0))+4),
 							"M140 P3 S"+str(int(m.group(0))+4)])
 
-					# self._logger.info(m.group(0))
-					# self._logger.info("regex caught")
-
-
 		if "button" in line:
-			# self.buttonPressCount += 1
-			# self._logger.info("Button press count: "+str(self.buttonPressCount))
-			# if line == "button x negative":
-			# 	self._printer.jog(dict(x=-10), speed=2000)
-			# if line == "button x positive":
-			# 	self._printer.jog(dict(x=10), speed=2000)
-
-
 			splitLine = line.split(" ")
 			if splitLine[1] in ("x0", "x1", "y", "z", "t0", "t1"):
 				axis = list(splitLine[1])[0]
@@ -1406,7 +1301,6 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 					distance = float(splitLine[3])
 				except IndexError:
 					distance = 0
-
 
 				if splitLine[2] == "negative":
 					direction = -1
@@ -1424,7 +1318,6 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 					self._printer.extrude(int(splitLine[2]))
 					return
 
-
 				if axis == "x":
 					speed = 2000
 				elif axis == "y":
@@ -1432,72 +1325,22 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				elif axis == "z":
 					speed = 500
 
-				# self._logger.info("direction, axis, distance:" + str(direction) + " ; " + str(axis) + " ; " + str(distance))
-				# self._logger.info( distance * direction)
-				# self._logger.info( float(distance) * float(direction))
 				moveDict = {}
 				moveDict[axis] = (distance * direction)
-				# self._logger.info(moveDict)
 				self._printer.jog(moveDict, speed = speed)
 
-
-
-
-
-			# if line == "button y negative":
-			# 	self._printer.jog(dict(y=-10), speed=1500)
-			# if line == "button y positive":
-			# 	self._printer.jog(dict(y=10), speed=1500)
-			# if line == "button z negative":
-			# 	self._printer.jog(dict(z=-10), speed=500)
-			# if line == "button z positive":
-			# 	self._printer.jog(dict(z=10), speed=500)
-
-			# if line == "button x0 negative":
-			# 	self._printer.change_tool("tool0")
-			# 	self._printer.jog(dict(x=-10), speed=2000)
-			# if line == "button x0 positive":
-			# 	self._printer.change_tool("tool0")
-			# 	self._printer.jog(dict(x=10), speed=2000)
-			# if line == "button x1 negative":
-			# 	self._printer.change_tool("tool1")
-			# 	self._printer.jog(dict(x=-10), speed=2000)
-			# if line == "button x1 positive":
-			# 	self._printer.change_tool("tool1")
-			# 	self._printer.jog(dict(x=10), speed=2000)
-
-
-
-
-
-
-
-
-
-			# if line == "button e negative":
-			# 	self._printer.extrude(-5)
-			# if line == "button e positive":
-			# 	self._printer.extrude(5)
-
-			# if line == "button retract t0":
-			# 	self._printer.change_tool("tool0")
-			# 	self._printer.extrude(-5)
-			# if line == "button extrude t0":
-			# 	self._printer.change_tool("tool0")
-			# 	self._printer.extrude(5)
-
-			# if line == "button retract t1":
-			# 	self._printer.change_tool("tool1")
-			# 	self._printer.extrude(-5)
-			# if line == "button extrude t1":
-			# 	self._printer.change_tool("tool1")
-			# 	self._printer.extrude(5)
-
-			if line == "button file page":
+			if line == "button fileMenu page":
 				self.fileListLocation = 0
 				self.currentPage = 'fileList'
 				self.currentFolder = ''
 				self.populatePrintList()
+				return
+			
+			if line == "button deleteMenu page":
+				self.deleteListLocation = 0
+				self.currentPage = 'deleteList'
+				self.currentFolder = ''
+				self.populateDeleteList()
 				return
 
 			if line == "button wifilist page":
@@ -1516,27 +1359,14 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				self._reset()
 				self._execute("/home/pi/.octoprint/scripts/resetRpi.sh")
 
-
 			if line == "button ap stop":
 				self.nextionDisplay.nxWrite('page messages')
 				tempResponse = self._stop_ap()
 				self.showMessage(tempResponse)
 
 			if line == "button network info":
-				# self.nextionDisplay.nxWrite('messages.text0.txt="Getting info."')
-				# self.nextionDisplay.nxWrite('messages.text1.txt=""')
 				currentStatus = self._get_status()
-
 				self.showMessage(currentStatus)
-				# if len(currentStatus)>254:
-				# 	self.nextionDisplay.nxWrite('messages.text0.txt="{}"'.format(currentStatus[0:253]))
-				# 	if len(currentStatus)>508:
-				# 		self.nextionDisplay.nxWrite('messages.text1.txt="{}"'.format(currentStatus[253:506]))
-				# else:
-				# 	self.nextionDisplay.nxWrite('messages.text0.txt="{}"'.format(currentStatus))
-
-
-
 
 			if "button password" in line:
 				password = line[16:]
@@ -1547,11 +1377,6 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				except Exception as e:
 					self._logger.info("Error while trying to connect to wifi: "+str(e))
 					connectResponse = "Error while trying to connect to wifi: "+str(e)
-				# else:
-					# self.nextionDisplay.nxWrite('page home')
-					# connectResponse = "Connection failed."
-				# self.showMessage(connectResponse)
-
 
 			if "button wifi" in line:
 				self._logger.info(line)
@@ -1571,7 +1396,6 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 							self.wifiListLocation = 0
 						self.showWifiList()
 
-
 					if wifiButton == "right":
 						if self.wifiListLocation < len(self.wifiList) - 4:
 							self.wifiListLocation += 2
@@ -1581,76 +1405,39 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				except Exception as e:
 					self._logger.info(str(e))
 
-
-
-
-
-			if "button file" in line:
+			if "button fileMenu" in line:
 				self._logger.info(line)
 				pattern = ' [^\s]*$'
 				try:
 					fileButton = (re.search(pattern, line)).group(0).strip()
-					# self._logger.info(fileButton)
-
-				
-					# if fileButton == 'page':
-					# 	self.populatePrintList()
-					# 	self.fileListLocation = 0
-					# 	self.currentPage = 'fileList'
 
 					if fileButton.isdigit():
-						# self._logger.info("fileButton isdigit")
 						self._logger.info(self.previousFolderList)
-						# self._logger.info(self.fileList)
 						try:
-							# self._logger.info(self.fileList[int(fileButton)+self.fileListLocation][0]['name'])
-							# self._logger.info(self.fileList[int(fileButton)+self.fileListLocation][1]['path'])
-							# self._logger.info(self.fileList[int(fileButton)+self.fileListLocation][2]['shortName'])
-							# self._logger.info(self.fileList[int(fileButton)+self.fileListLocation][3]['type'])
-							# self._logger.info(self.fileList[int(fileButton)+self.fileListLocation][2]['shortName'])
-
-							# self._logger.info(self.fileList[int(fileButton)+self.fileListLocation][0]['type'])
-
 							if self.fileList[int(fileButton)+self.fileListLocation][3]['type'] == 'folder':
 								if self.fileList[int(fileButton)+self.fileListLocation][0]['name'] == 'up':
 									self.navigateFolderUp()
 									self.populatePrintList()
-									# self.previousFolderList.append(self.currentFolder)
-									# self.previousFolderList = list(self.previousFolderList).append(self.currentFolder)
-									# self._logger.info("previousFolderList:")
-									# self._logger.info(self.previousFolderList)
+
 								else:
 									self.currentFolder = self.fileList[int(fileButton)+self.fileListLocation][1]['path']
 									self.currentPath = self.fileList[int(fileButton)+self.fileListLocation][1]['path']
 									self.fileListLocation = 0
 									self.populatePrintList()
-								# self.previousFolderList.pop()
-								# self._logger.info(self.currentFolder)
-
-
-
 							else:
 								self._printer.select_file((self._file_manager.sanitize_path('local',(self.fileList[int(fileButton)+self.fileListLocation][1]['path']))), False)
 								self.nextionDisplay.nxWrite('page printcontrols')
 								self._logger.info(line)
-
-							# self._printer.select_file(self._file_manager.path_in_storage('local', self.fileList[int(fileButton)][1]['path']), False)
 
 						except KeyError as e:
 							self._logger.info("Keyerror when selecting file: "+str(e))
 							traceback.print_exc()
 							self._logger.info(line)
 
-
-
 						except Exception as e:
 							self._logger.info("General exception when selecting file: "+str(e))
 							traceback.print_exc()
 							self._logger.info(line)
-
-
-
-
 
 					if fileButton == "left":
 						if self.fileListLocation >= 2:
@@ -1658,8 +1445,6 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 						else:
 							self.fileListLocation = 0
 						self.showFileList()
-
-
 					if fileButton == "right":
 						if self.fileListLocation < len(self.fileList) - 4:
 							self.fileListLocation += 2
@@ -1669,12 +1454,6 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				
 				except Exception as e:
 					self._logger.info(str(e))
-
-
-
-
-
-
 
 			if line == "button home all":
 				if not self.rrf:
@@ -1692,14 +1471,6 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 			if line == "button home z":
 				self._printer.home(("z"))
 
-
-			if line == "button page files":
-				# populate the file page list - self.nextionDisplay.nxWrite("Files.fileOne.txt=whateverFileName.stl") etc.
-				pass
-			# if line == "button file 1 info":
-			# 	# populate the file info page - FileInfo.fileName.txt=blah , FileInfo.fileSize.txt=size, FileInfo.fileTime.txt=time
-			# 	# repeat this for files 2~9
-			# 	pass
 			if line == "button print start":
 				# select and start printing the selected file
 				# pass
@@ -1714,7 +1485,6 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				self.nextionDisplay.nxWrite('printcontrols.toggle.txt="Pause"')
 				# self.currentPage = 'home'
 
-
 			if line == "button print toggle":
 				# select and start printing the selected file
 				# pass
@@ -1726,7 +1496,6 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 					self.nextionDisplay.nxWrite("page pauseConfirm")
 				elif self._printer.is_paused():
 					self.nextionDisplay.nxWrite("page resumeConfirm")
-
 
 			if line == "button print pause":
 				# select and start printing the selected file
@@ -1741,8 +1510,6 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				self.nextionDisplay.nxWrite('printcontrols.toggle.txt="Pause"')
 				self._printer.resume_print()
 				# self.currentPage = 'home'
-
-
 
 			if line == "button printer reset":
 				self._execute("/home/pi/.octoprint/scripts/resetRambo.sh")
@@ -1770,13 +1537,79 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 				self._printer.commands("M84")
 
 			if line == "button fan on":
-				self._printer.commands("M106 S255")
+				self._printer.commands("M106 P0 S255")
+				self._printer.commands("M106 P3 S255")
 
 			if line == "button fan off":
-				self._printer.commands("M106 S0")
+				self._printer.commands("M106 P0 S0")
+				self._printer.commands("M106 P3 S0")
 
+			if line == "button QR Code":
+				self.setQR()
 
-			# line = self.nextionSerial.readline()
+			# Cold Extrude Menu new code 5-23-34 by Garrett
+			if line == "button cold extrude":
+				self._printer.commands("M302 P1")
+
+			# Homing Option Menu new code 5-23-34 by Garrett
+			if line == "button homing disabled":
+				self._printer.commands("M564 S0 H0")
+			
+			if line == "button collect logs": 
+				self.collectLogs()
+
+			if "button deleteMenu" in line:
+				self._logger.info(line)
+				pattern = ' [^\s]*$'
+				try:
+					fileButton = (re.search(pattern, line)).group(0).strip()
+					if fileButton.isdigit():
+						self._logger.info(self.previousFolderList)
+						try:
+							if self.deleteList[int(fileButton)+self.deleteListLocation][3]['type'] == 'folder':
+								if self.deleteList[int(fileButton)+self.deleteListLocation][0]['name'] == 'up':
+									self.navigateFolderUp()
+									self.populateDeleteList()
+
+								else:
+									self.currentFolder = self.deleteList[int(fileButton)+self.deleteListLocation][1]['path']
+									self.currentPath = self.deleteList[int(fileButton)+self.deleteListLocation][1]['path']
+									self.deleteListLocation = 0
+									self.populateDeleteList()
+
+							else:
+								# works for now, but need to add a confirmation dialog
+								self._file_manager.remove_file('local', self.deleteList[int(fileButton)+self.deleteListLocation][1]['path'])
+								self.populateDeleteList()
+								#self._logger.info("deleted: " + self.deleteList[int(fileButton)+self.deleteListLocation][1]['path'])
+								#self._logger.info(line)
+
+						except KeyError as e:
+							self._logger.info("Keyerror when selecting file: "+str(e))
+							traceback.print_exc()
+							self._logger.info(line)
+
+						except Exception as e:
+							self._logger.info("General exception when selecting file: "+str(e))
+							traceback.print_exc()
+							self._logger.info(line)
+
+					if fileButton == "left":
+						if self.deleteListLocation >= 2:
+							self.deleteListLocation -= 2
+						else:
+							self.deleteListLocation = 0
+						self.showDeleteFileList()
+					if fileButton == "right":
+						if self.deleteListLocation < len(self.deleteList) - 4:
+							self.deleteListLocation += 2
+						else:
+							self.deleteListLocation = len(self.deleteList) - 3
+						self.showDeleteFileList()
+				
+				except Exception as e:
+					self._logger.info(str(e))
+
 
 	def _get_wifi_list(self, force=False):
 		payload = dict()
@@ -1818,14 +1651,12 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 			raise RuntimeError("Error while selecting wifi: " + content)
 		return content
 		
-
 	def _forget_wifi(self):
 		payload = dict()
 		flag, content = self._send_message("forget_wifi", payload)
 		if not flag:
 			raise RuntimeError("Error while forgetting wifi: " + content)
 		return content
-
 
 	def _reset(self):
 		payload = dict()
@@ -1851,24 +1682,24 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 		obj[message] = data
 
 		import json
-		js = json.dumps(obj, encoding="utf8", separators=(",", ":"))
+		js = json.dumps(obj, separators=(",", ":")).encode("utf8")
 
 		import socket
 		sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 		sock.settimeout(self._settings.get_int(["timeout"]))
 		try:
 			sock.connect(self.address)
-			sock.sendall(js + '\x00')
+			sock.sendall(js + b'\x00')
 
 			buffer = []
 			while True:
 				chunk = sock.recv(16)
 				if chunk:
 					buffer.append(chunk)
-					if chunk.endswith('\x00'):
+					if chunk.endswith(b'\x00'):
 						break
 
-			data = ''.join(buffer).strip()[:-1]
+			data = b''.join(buffer).strip()[:-1]
 
 			response = json.loads(data.strip())
 			if "result" in response:
@@ -1876,26 +1707,100 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 
 			elif "error" in response:
 				# something went wrong
-				self._logger.warn("Request to netconnectd went wrong: " + response["error"])
+				self._logger.warning("Request to netconnectd went wrong: " + response["error"])
 				return False, response["error"]
 
 			else:
 				output = "Unknown response from netconnectd: {response!r}".format(response=response)
-				self._logger.warn(output)
+				self._logger.warning(output)
 				return False, output
 
 		except Exception as e:
 			output = "Error while talking to netconnectd: {}".format(e)
-			self._logger.warn(output)
+			self._logger.warning(output)
 			return False, output
 
 		finally:
 			sock.close()
 
+
+	def setQR(self):
+		self._logger.info("Setting QR code.")
+		qrText = "http://" + self.hostname + "/"
+
+		# Write qrText to display via txt
+		self.nextionDisplay.nxWrite('qrMenu.qr0.txt="' + qrText + '"')
+
+
+	def copyFiles(self, src_dir, dst_dir):
+		for dirpath, dirnames, filenames in os.walk(src_dir):
+			for filename in filenames:
+				src_file = os.path.join(dirpath, filename)
+				shutil.copy(src_file, dst_dir)
+
+
+	def collectLogs(self):
+		# Change the display to the downloading page
+		self.nextionDisplay.nxWrite('page downloading')
+
+		# Determine if any USB drive is mounted
+		mountedDrive = None
+
+		# Python version check
+		# if sys.version_info[0] > 3:
+		# 	# Python 3.6+ only for f strings
+		usbPath = f"/media/usb{i}"
+		# Python 2
+		# usbPath = "/media/usb{}".format(i)
+
+		for i in range(4):
+			if os.path.exists(usbPath):
+				self._logger.info("USB drive mounted at {}".format(usbPath))
+				mountedDrive = usbPath
+				break
+
+		# If no USB drive is mounted, report an error and return to the home page
+		if not mountedDrive:
+			self._logger.info("No USB drive mounted, cannot collect logs.")
+			self.nextionDisplay.nxWrite('downloading.t1.txt="Error: No USB drive found."')
+			return
+
+		# Create a zip file of the logs
+		mainLogFolder = "/home/pi/.octoprint/logs"
+		mainLogs =  os.listdir(mainLogFolder)
+
+		# Grab the makergear logs from a different python site-packages folder
+		# print(f'Python version: {sys.version_info.major}.{sys.version_info.minor}')
+		mgLogFolder = "/home/pi/oprint/lib/python2.7/site-packages/octoprint_mgsetup/logs"
+		
+		# move the logs to the main log folder
+		self.copyFiles(mgLogFolder, mainLogFolder)
+		
+		try:
+			self._logger.info("Preparing Logs, Please Wait.")
+			zipNameDate = "MGSetup-Logs-" + "-" + str(datetime.datetime.now().strftime('%y-%m-%d_%H-%M'))
+			zipname = self._basefolder+"/static/supportfiles/logs/" + zipNameDate +".zip"
+			with ZipFile(zipname, 'w', ZIP_DEFLATED) as logzip:
+				for file_name in mainLogs:
+					tempfile = os.path.join(mainLogFolder, file_name)
+					logzip.write(tempfile, os.path.basename(tempfile))
+
+			self._logger.info("Downloading File: "+str(zipNameDate)+".zip")
+			# move the zip file to the usb drive
+			self._logger.info("Moving zip file to USB drive.")
+			shutil.move(zipname, usbPath)
+			
+		except Exception as e:
+			self._logger.info("collectLogs failed, exception: " + str(e))
+		
+		# return to the home page
+		self.nextionDisplay.nxWrite("page home")
+
 # If you want your plugin to be registered within OctoPrint under a different name than what you defined in setup.py
 # ("OctoPrint-PluginSkeleton"), you may define that here. Same goes for the other metadata derived from setup.py that
 # can be overwritten via __plugin_xyz__ control properties. See the documentation for that.
 __plugin_name__ = "Mglcd Plugin"
+__plugin_pythoncompat__ = ">=2.7,<4"
 
 def __plugin_load__():
 	global __plugin_implementation__

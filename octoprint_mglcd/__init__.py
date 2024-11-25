@@ -618,7 +618,7 @@ class NextionPlugin(octoprint.plugin.StartupPlugin,
 
 		#TODO - make this target the OctoPrint python binary in a more relative way - this version breaks if OctoPrint isn't running from "/home/pi/oprint/"
 		#TODO - make this select either the most recent (highest number) firmware file, instead of hardcoding it and changing that every time the version changes
-		self.firmwareLocation = self._basefolder+"/static/supportfiles/nextion_uploader/u1-v3-0128.tft"
+		self.firmwareLocation = self._basefolder+"/static/supportfiles/nextion_uploader/u1-v3-0129.tft"
 		flashCommand = "/home/pi/oprint/bin/python " + self.firmwareFlashingProgram + " " + self.firmwareLocation + " " + targetPort
 		if (self._execute(flashCommand)[0] == 0):
 			self.tryToConnect = True
